@@ -34,7 +34,9 @@ loop(Req) ->
 			_Key = list_to_binary(proplists:get_value("key", Query, "")),
 
 			Response = case Event of 
-				"stopped" -> benc:to_binary(<<"stopped">>);
+				"stopped" ->
+					ok = trackerdb:remove(InfoHash, Ip, Port),
+					benc:to_binary(<<"stopped">>);
 				_ -> 
 					{ ok, AvailablePeers, Complete, Incomplete } = trackerdb:announce(InfoHash, Ip, Port, PeerId, Uploaded, Downloaded, Left),
 			

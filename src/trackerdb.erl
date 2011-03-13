@@ -1,6 +1,6 @@
 -module(trackerdb).
 
--export([init/0, announce/7, unix_seconds_since_epoch/0, remove_peers_with_timeout_in_seconds/1]).
+-export([init/0, announce/7, remove/3, unix_seconds_since_epoch/0, remove_peers_with_timeout_in_seconds/1]).
 
 -include_lib("stdlib/include/qlc.hrl").
 
@@ -45,6 +45,13 @@ announce(InfoHash, Ip, Port, PeerId, Uploaded, Downloaded, Left) ->
 		end),
 	Result.
 
+remove(InfoHash, Ip, Port) ->
+	{atomic, Result} = mnesia:transaction(
+		fun() -> 
+			mnesia:delete({pirate, { InfoHash, Ip, Port } })
+		end),
+	Result.
+	
 remove_peers_with_timeout_in_seconds(Seconds) ->
 	KillTime = unix_seconds_since_epoch() - Seconds, % all pirates iwth an update date of this and below need to go away
 	Q = qlc:q([Pirate || Pirate <- mnesia:table(pirate), Pirate#pirate.last_seen < KillTime]),
