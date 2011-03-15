@@ -293,6 +293,7 @@ process_message(<<?REQUEST, Piece:32/big,
 					  offset = Offset,
 					  length = Length}]};
 
+% Puzzled: should this work the other way round? e.g. not() the result? as filter keeps everything where the result is true
 process_message(<<?CANCEL, Piece:32/big,
 		  Offset:32/big, Length:32/big>>,
 		#state{queue = Queue} = State) ->
@@ -347,7 +348,7 @@ send_queued(#queued{piece = Piece,
 		   info_hash = InfoHash} = State) ->
     FileRanges = piecesdb:map_files(InfoHash, Piece, Offset, Length),
     MessageLength = 1 + 4 + 4 + Length,
-    % logger:log(wire, info, "~s Sending out piece ~p offset ~p length ~p~n", [prit_util:info_hash_representation(InfoHash),Piece, Offset, Length]),
+    %logger:log(wire, info, "~s Sending out piece ~p offset ~p length ~p~n", [prit_util:info_hash_representation(InfoHash),Piece, Offset, Length]),
     gen_tcp:send(Sock, <<MessageLength:32/big, ?PIECE,
 			 Piece:32/big, Offset:32/big>>),
     send_piece(FileRanges, State).
@@ -356,9 +357,10 @@ send_piece(FileRanges, #state{sock = Sock,
 			      info_hash = InfoHash}) ->
     lists:foreach(
       fun({Path, Offset, Length}) ->
-	      % logger:log(wire, debug, "Sending ~B bytes to socket ~p", [Length, Sock]),
+	      %logger:log(wire, debug, "Sending ~B bytes of ~p to socket ~p~n", [Length, Path, Sock]),
 	      backend:fold_file(Path, Offset, Length,
 				fun(Data, _) ->
+					%logger:log(wire, debug, "actually seding ~B bytes~n", [size(Data)]),
 					gen_tcp:send(Sock, Data),
 					torrentdb:inc_uploaded(InfoHash, size(Data))
 				end, nil)

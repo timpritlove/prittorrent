@@ -125,6 +125,9 @@ add_torrent(TorrentFile, Dir) ->
     {value, {_, PieceLength}} =
 	lists:keysearch(<<"piece length">>, 1, InfoDict),
     Files = info_files(InfoDict),
+    % TODO: check if file exists. if not prepend the path with the name of the torrent, as it seems convention that this is a directory containing the files
+    % logger:log(control, debug, "adding torrent ~s with files~n~p,~n~p~n", [prit_util:info_hash_representation(InfoHash), Files,InfoDict]),
+
     {value, {_, AnnounceUrl}} =
 	lists:keysearch(<<"announce">>, 1, Parsed),
     %% TODO: make supervised
