@@ -26,7 +26,11 @@ Installation
 Running
 -------
 
-1. Copy seeds.example.xml to seeds.xml and customize (the data directory is setup for this, put the torrents in data/torrents and the files in data/files - you can use absolte paths in the seeds.xml file as well and use your own structure)
+1. Copy seeds.example.xml to seeds.xml and customize (the data directory is setup for 
+   this, put the torrents in data/torrents and the files in data/files - you can 
+   use absolute paths in the seeds.xml file as well and use your own structure).
+   When dealing with multi file torrents make sure the data part points inside
+   and not at the first directory.
 
 2. Make sure the port specified in servtorrent.app is reachable from
    the Internet (servtorrent will not use peer info from tracker
