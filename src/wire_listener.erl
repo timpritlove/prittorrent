@@ -38,7 +38,7 @@ start_link() ->
 init() ->
     %% TODO: inet6
     {ok, Port} = get_port(),
-    {ok, Sock} = gen_tcp:listen(Port, [binary, inet]),
+    {ok, Sock} = gen_tcp:listen(Port, [binary, inet, {reuseaddr, true}]), % reuseaddr enables quick restart of server
     application:set_env(servtorrent, wire_port, Port),
     logger:log(wire, info,
 	       "Listening on port ~B", [Port]),

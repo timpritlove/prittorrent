@@ -77,8 +77,8 @@ init([{InfoHash, IP, Port}]) ->
     {ok, MyPeerId} = torrentdb:peer_id(),
     gen_tcp:send(Sock, MyPeerId),
     send_bitfield(State),
-    
     {ok, State};
+
 %% Incoming connections, InfoHash to be received
 init([Sock]) ->
     logger:log(wire, info,
@@ -132,6 +132,9 @@ handle_cast(go, #state{sock = Sock} = State) ->
 handle_info({tcp, Sock, Data}, #state{sock = Sock,
 				      buffer = Buffer} = State1) ->
     State2 = State1#state{buffer = list_to_binary([Buffer, Data])},
+	logger:log(wire, info,
+	       "Trying to match input of ~p~n", [State2#state.buffer]),
+
     State3 = process_input(State2),
 
     State4 = case {State3#state.step,
@@ -142,6 +145,8 @@ handle_info({tcp, Sock, Data}, #state{sock = Sock,
 		 _ ->
 		     State3
 	     end,
+	logger:log(wire, debug,"Queue length of ~p~n", [length(State4#state.queue)]),	
+	
     Queue =
 	lists:filter(fun(Queued) ->
 			     case (catch send_queued(Queued, State4)) of
@@ -151,13 +156,14 @@ handle_info({tcp, Sock, Data}, #state{sock = Sock,
 						[Queued, Reason]),
 				     %% Keep:
 				     true;
-				 (_) ->
+				 _ ->
 				     %% Ok, remove from queue
 				     false
 			     end
 		     end, State4#state.queue),
     {noreply, State4#state{queue = Queue}};
 handle_info({tcp_closed, Sock}, #state{sock = Sock} = State) ->
+%	logger:log(wire, info,"Socket closed~n", []),
     {stop, normal, State}.
 
 %%--------------------------------------------------------------------
@@ -373,14 +379,17 @@ process_message(<<>>, State) ->
     State;
 
 process_message(<<?INTERESTED>>, State) ->
+%	logger:log(wire, debug,"Got interest", []),	
     State#state{interested = true};
 
 process_message(<<?NOT_INTERESTED>>, State) ->
+%	logger:log(wire, debug,"No interest", []),	
     State#state{interested = false};
 
 process_message(<<?REQUEST, Piece:32/big,
 		  Offset:32/big, Length:32/big>>,
 		#state{queue = Queue} = State) ->
+%	logger:log(wire, debug,"Received Request", []),	
     State#state{queue = Queue ++ [#queued{piece = Piece,
 					  offset = Offset,
 					  length = Length}]};
@@ -404,9 +413,12 @@ send_message(Sock, Msg) ->
 			Msg/binary>>).
 
 send_handshake(#state{sock = Sock}) ->
-    ok = gen_tcp:send(Sock, <<19, "BitTorrent protocol">>).
+	BinaryGreeting =  <<19, "BitTorrent protocol">>,
+%    logger:log(wire, info,"Sending handshake of ~p~n", [BinaryGreeting]),
+    ok = gen_tcp:send(Sock,BinaryGreeting).
 
 send_extensions(#state{sock = Sock}) ->
+%    logger:log(wire, info,"Sending extensions of zeros~n", []),
     ok = gen_tcp:send(Sock, <<0, 0, 0, 0, 0, 0, 0, 0>>).
 
 
@@ -438,6 +450,7 @@ send_queued(#queued{piece = Piece,
 		   info_hash = InfoHash} = State) ->
     FileRanges = piecesdb:map_files(InfoHash, Piece, Offset, Length),
     MessageLength = 1 + 4 + 4 + Length,
+    logger:log(wire, info, "Sending out piece ~p offset ~p length ~p~n", [Piece, Offset, Length]),
     gen_tcp:send(Sock, <<MessageLength:32/big, ?PIECE,
 			 Piece:32/big, Offset:32/big>>),
     send_piece(FileRanges, State).
@@ -446,8 +459,7 @@ send_piece(FileRanges, #state{sock = Sock,
 			      info_hash = InfoHash}) ->
     lists:foreach(
       fun({Path, Offset, Length}) ->
-%%	      logger:log(wire, debug,
-%%			 "Sending ~B bytes to socket ~p", [Length, Sock]),
+	      logger:log(wire, debug, "Sending ~B bytes to socket ~p", [Length, Sock]),
 	      backend:fold_file(Path, Offset, Length,
 				fun(Data, _) ->
 					gen_tcp:send(Sock, Data),
