@@ -20,7 +20,7 @@ loop(Req) ->
 	case {Req:get(method), Req:get(path)} of
 	    { 'GET', "/announce" } ->
 			Query = Req:parse_qs(),
-			io:format("~p~n", [Query]), 
+			HandledArguments = ["info_hash", "peer_id","port","uploaded","downloaded","left","event","compact","supportcrypto","key"],
 			{ok, Ip} = inet_parse:address(Req:get(peer)),
 			InfoHash = list_to_binary(proplists:get_value("info_hash", Query)),
 			PeerId = list_to_binary(proplists:get_value("peer_id", Query)),
@@ -30,8 +30,13 @@ loop(Req) ->
 			Left = list_to_integer(proplists:get_value("left", Query, "0")),
 			Event = proplists:get_value("event", Query, undefined),
 			Compact = list_to_integer(proplists:get_value("compact", Query, "0")),
-			_Crypto = list_to_integer(proplists:get_value("supportcrypto", Query, "0")),
-			_Key = list_to_binary(proplists:get_value("key", Query, "")),
+			Crypto = list_to_integer(proplists:get_value("supportcrypto", Query, "0")),
+			ClientKey = list_to_binary(proplists:get_value("key", Query, "")),
+
+
+			io:format("~s:~b hash:~s peerId:~s left:~b compact:~b up:~b down:~b key:~s crypto:~b ",[inet_parse:ntoa(Ip),Port,prit_util:info_hash_representation(InfoHash), prit_util:to_printable_binary(PeerId), Left, Compact, Uploaded, Downloaded, ClientKey, Crypto]),
+			io:format("additional arguments:~p~n", [lists:filter(fun({Key,_Value}) -> not(lists:member(Key,HandledArguments)) end, Query)]), 
+
 
 			Response = case Event of 
 				"stopped" ->

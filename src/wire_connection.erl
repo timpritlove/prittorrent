@@ -60,7 +60,7 @@ start_link(Param) ->
 %% Outgoing connections with IP/Port
 init([{InfoHash, IP, Port}]) ->
     logger:log(wire, info,
-	       "Connecting to ~p:~p for ~p~n", [IP, Port, InfoHash]),
+	       "Connecting to ~s :~b for ~s~n", [inet_parse:ntoa(IP), Port, prit_util:info_hash_representation(InfoHash)]),
     Opts = case IP of
 	       {_, _, _, _, _, _, _, _} -> [inet6];
 	       _ -> []
@@ -132,8 +132,7 @@ handle_cast(go, #state{sock = Sock} = State) ->
 handle_info({tcp, Sock, Data}, #state{sock = Sock,
 				      buffer = Buffer} = State1) ->
     State2 = State1#state{buffer = list_to_binary([Buffer, Data])},
-	logger:log(wire, info,
-	       "Trying to match input of ~p~n", [State2#state.buffer]),
+	%logger:log(wire, info,"Trying to match input of ~p~n", [State2#state.buffer]),
 
     State3 = process_input(State2),
 
@@ -450,7 +449,7 @@ send_queued(#queued{piece = Piece,
 		   info_hash = InfoHash} = State) ->
     FileRanges = piecesdb:map_files(InfoHash, Piece, Offset, Length),
     MessageLength = 1 + 4 + 4 + Length,
-    logger:log(wire, info, "Sending out piece ~p offset ~p length ~p~n", [Piece, Offset, Length]),
+    logger:log(wire, info, "~s Sending out piece ~p offset ~p length ~p~n", [prit_util:info_hash_representation(InfoHash),Piece, Offset, Length]),
     gen_tcp:send(Sock, <<MessageLength:32/big, ?PIECE,
 			 Piece:32/big, Offset:32/big>>),
     send_piece(FileRanges, State).
