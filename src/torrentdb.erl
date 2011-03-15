@@ -269,7 +269,7 @@ tracker_loop(AnnounceUrl, InfoHash, Counter) ->
     %% Wait the interval before next tracker request
     receive
     after Interval * 1000 ->
-	    ?MODULE:tracker_loop(AnnounceUrl, InfoHash)
+	    ?MODULE:tracker_loop(AnnounceUrl, InfoHash, Counter+1)
     end.
 
 tracker_request(AnnounceUrl, InfoHash, Event) ->
