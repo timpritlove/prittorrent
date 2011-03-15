@@ -68,9 +68,7 @@ init([{InfoHash, IP, Port}]) ->
     {ok, Sock} = gen_tcp:connect(IP, Port, [binary,
 					    {active, true}
 					    | Opts]),
-    State = #state{sock = Sock,
-		   info_hash = InfoHash,
-		   mode = client},
+    State = #state{sock = Sock, info_hash = InfoHash, mode = client},
 	send_full_handshake(State),
     send_bitfield(State),
     {ok, State};
@@ -80,8 +78,7 @@ init([Sock]) ->
     logger:log(wire, info,
 	       "Connection from ~p~n", [Sock]),
     link(Sock),
-    {ok, #state{sock = Sock,
-		mode = server}}.
+    {ok, #state{sock = Sock, mode = server}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -128,7 +125,7 @@ handle_cast(go, #state{sock = Sock} = State) ->
 handle_info({tcp, Sock, Data}, #state{sock = Sock,
 				      buffer = Buffer} = State1) ->
     State2 = State1#state{buffer = list_to_binary([Buffer, Data])},
-	%logger:log(wire, info,"Trying to match input of ~p~n", [State2#state.buffer]),
+	% logger:log(wire, info,"Trying to match input of ~w~n~s~n", [State2#state.buffer, prit_util:to_printable_binary(State2#state.buffer)]),
 
     State3 = process_input(State2),
 
@@ -216,7 +213,8 @@ process_input(#state{mode = server,
 	end;
 
 %% received header length, but not in correct format
-process_input(#state{mode = server, step = handshake, buffer = <<_Ignore:49/binary, _>>} = _State) ->
+process_input(#state{mode = server, step = handshake, buffer = <<Ignore:49/binary, _/binary>>} = _State) ->
+	io:format("unknown handshake in server state: ~w ~s~n",[Ignore, prit_util:to_printable_binary(Ignore)]),
 	exit(malformed_handshake);
 
 %% wait for more enough bytes to parse header
@@ -248,7 +246,8 @@ process_input(#state{mode = client,
 	end;
 
 %% received header length, but not in correct format
-process_input(#state{mode = server, step = handshake, buffer = <<_Ignore:49/binary, _>>} = _State) ->
+process_input(#state{mode = server, step = handshake, buffer = <<Ignore:49/binary, _/binary>>} = _State) ->
+	io:format("unknown server handshake in client state: ~w ~s\n",[Ignore, prit_util:to_printable_binary(Ignore)]),
 	exit(malformed_handshake);
 
 % wait for more bytes
