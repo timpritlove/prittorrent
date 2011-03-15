@@ -10,6 +10,7 @@
   {registered, [wire_listener, servtorrent_sup]},
   {mod, {servtorrent, []}},
   {env, [{wire_port, 6881},
+	 {tracker_port, 6969},
 	 {seedlist, "seeds.xml"},
 	 %% LogOptions = [LogOption]
 	 %% LogOption = {Target, [Filter]}

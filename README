@@ -2,7 +2,7 @@ servtorrent
 ===========
 
 Written on EH 2010 in Munich.
-
+Extended on Erlang Geekend 03-2011 in Metabene Berlin.
 
 Purpose
 -------
@@ -19,21 +19,18 @@ Installation
 
 1. Install Erlang
 
-2. Install ibrowse (HTTP client library)
-  * git clone git://github.com/cmullaparthi/ibrowse.git
-  * cd ibrowse
-  * make
-  * sudo ln -s `pwd` /usr/lib*/erlang/lib/ibrowse
-
+2. Activate and update submodules
+	 * git submodule init
+	 * git submodule update
 
 Running
 -------
 
-1. Customize seeds.xml
+1. Copy seeds.example.xml to seeds.xml and customize (the data directory is setup for this, put the torrents in data/torrents and the files in data/files - you can use absolte paths in the seeds.xml file as well and use your own structure)
 
 2. Make sure the port specified in servtorrent.app is reachable from
    the Internet (servtorrent will not use peer info from tracker
-   responses)
+   responses).
 
 3. Compile and run by issuing: ./start.sh
 

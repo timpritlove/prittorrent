@@ -20,10 +20,17 @@ init([]) ->
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
 
     TrackerWeb = {tracker_web,
-	       {tracker_web, start, [[{ip, "0.0.0.0"}, {port, 6969}]]},
+	       {tracker_web, start, [[{ip, "0.0.0.0"}, {port, get_port()}]]},
 	       permanent, 2000, worker, [tracker_web]},
     TrackerManager = {tracker_manager,
 		{tracker_manager, start_link, []},
 		permanent, 2000, worker, [tracker_manager]},
 
     {ok, {SupFlags, [TrackerWeb, TrackerManager]}}.
+
+
+get_port() ->
+    case application:get_env(servtorrent, tracker_port) of
+	    {ok,Port} -> Port;
+		_ -> 6969 % default if not set
+	end.

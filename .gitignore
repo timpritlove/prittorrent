@@ -2,3 +2,4 @@
 *.dump
 control.log
 .DS_Store
+seeds.xml

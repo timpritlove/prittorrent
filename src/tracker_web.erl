@@ -61,19 +61,19 @@ loop(Req) ->
 
 %% Internal API
 
-get_option(Option, Options) ->
-    {proplists:get_value(Option, Options), proplists:delete(Option, Options)}.
+%get_option(Option, Options) ->
+%    {proplists:get_value(Option, Options), proplists:delete(Option, Options)}.
 
 
-get_remote_addr_(Addr) ->
-%%io:format("get_remote_addr_(~p)~n", [Addr]),
-    case inet_parse:ipv6_address(Addr) of
-	{ok, {0, 0, 0, 0, 0, 16#ffff, AB, CD}} ->
-	    {AB bsr 8, AB band 16#ff, CD bsr 8, CD band 16#ff};
-	{ok, Addr6} ->
-	    Addr6
-    end.
--define(GET_REMOTE_ADDR, get_remote_addr_(Req:get(peer))).
+%get_remote_addr_(Addr) ->
+%%%io:format("get_remote_addr_(~p)~n", [Addr]),
+%    case inet_parse:ipv6_address(Addr) of
+%	{ok, {0, 0, 0, 0, 0, 16#ffff, AB, CD}} ->
+%	    {AB bsr 8, AB band 16#ff, CD bsr 8, CD band 16#ff};
+%	{ok, Addr6} ->
+%	    Addr6
+%    end.
+%-define(GET_REMOTE_ADDR, get_remote_addr_(Req:get(peer))).
 
 
 
