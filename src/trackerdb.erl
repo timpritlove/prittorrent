@@ -8,10 +8,25 @@
 					uploaded, downloaded, left,
 					first_seen, last_seen}).
 
+-record(swarm_status, { info_hash, complete, incomplete}). 
 
 init() ->
     mnesia:create_table(pirate,
 			[{attributes, record_info(fields, pirate)}, {type, set}, {index, [info_hash]}]).
+
+% using astro's _t to mean needs to be inside of an transaction
+swarm_status_t(InfoHash) ->
+		{ Complete, Incomplete } = qlc:fold(
+			fun(#pirate{left = 0}, { CompleteAcc, IncompleteAcc} ) ->
+				{ CompleteAcc + 1, IncompleteAcc };
+			(_, { CompleteAcc, IncompleteAcc} ) ->
+				{ CompleteAcc , IncompleteAcc + 1 }
+			end, 
+			{0, 0}, 
+			qlc:q([Pirate || Pirate = #pirate{}  <- mnesia:table(pirate), Pirate#pirate.info_hash =:= InfoHash])
+		),
+		{ok, #swarm_status{info_hash = InfoHash, complete = Complete, incomplete = Incomplete}}.
+	
 
 announce(InfoHash, Ip, Port, PeerId, Uploaded, Downloaded, Left) ->
 	PrimaryPeerKey = { InfoHash, Ip, Port },
@@ -32,15 +47,11 @@ announce(InfoHash, Ip, Port, PeerId, Uploaded, Downloaded, Left) ->
 							first_seen = Now, last_seen = Now }
 		end,
 		mnesia:write(PeerUpdate),
-		
+
+		{ok, #swarm_status{complete = Complete, incomplete = Incomplete}} = swarm_status_t(InfoHash),
+
 		AvailablePeers = [ { TmpPeerId, TmpIp, TmpPort } ||
 							Peer = #pirate{ peer_id = TmpPeerId, ip = TmpIp, port = TmpPort } <- AllPeers, Peer#pirate.id =/= PrimaryPeerKey],
-		{ Complete, Incomplete } = mnesia:foldl(
-			fun(#pirate{left = 0}, { CompleteAcc, IncompleteAcc} ) ->
-				{ CompleteAcc + 1, IncompleteAcc };
-			(_, { CompleteAcc, IncompleteAcc} ) ->
-				{ CompleteAcc , IncompleteAcc + 1 }
-			end, { 0, 0}, pirate),
 		{ ok, AvailablePeers, Complete, Incomplete }
 		end),
 	Result.
