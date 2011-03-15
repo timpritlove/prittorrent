@@ -71,11 +71,7 @@ init([{InfoHash, IP, Port}]) ->
     State = #state{sock = Sock,
 		   info_hash = InfoHash,
 		   mode = client},
-    send_handshake(State),
-    send_extensions(State),
-    gen_tcp:send(Sock, InfoHash),
-    {ok, MyPeerId} = torrentdb:peer_id(),
-    gen_tcp:send(Sock, MyPeerId),
+	send_full_handshake(State),
     send_bitfield(State),
     {ok, State};
 
@@ -144,7 +140,7 @@ handle_info({tcp, Sock, Data}, #state{sock = Sock,
 		 _ ->
 		     State3
 	     end,
-	logger:log(wire, debug,"Queue length of ~p~n", [length(State4#state.queue)]),	
+%	logger:log(wire, debug,"Queue length of ~p~n", [length(State4#state.queue)]),	
 	
     Queue =
 	lists:filter(fun(Queued) ->
@@ -197,79 +193,34 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 
 %% Waiting for handshake
-
 process_input(#state{mode = server,
 		     step = handshake,
-		     buffer = <<19,
-				"BitTorrent protocol",
-				Buffer/binary>>
-		    } = State) ->
-    send_handshake(State),
-    process_input(State#state{step = extensions,
-			      buffer = Buffer});
-
-process_input(#state{mode = server,
-		     step = handshake,
-		     buffer = Buffer} = State)
-  when size(Buffer) < 20 ->
-    State;
-
-%% Waiting for extensions
-
-process_input(#state{mode = server,
-		     step = extensions,
-		     buffer = <<_Ignore:8/binary, Rest/binary>>} = State) ->
-    send_extensions(State),
-    process_input(State#state{step = info_hash,
-			      buffer = Rest});
-
-process_input(#state{mode = server,
-		     step = extensions} = State) ->
-    State;
-
-%% Waiting for info_hash
-
-process_input(#state{mode = server,
-		     step = info_hash,
-		     buffer = <<InfoHash:20/binary, Rest/binary>>,
+		     buffer = <<19, "BitTorrent protocol", _ExtensionBytes:8/binary , InfoHash:20/binary, PeerId:20/binary, Rest/binary>>,
 		     sock = Sock} = State) ->
-    gen_tcp:send(Sock, InfoHash),
-    process_input(State#state{step = peer_id,
-			      buffer = Rest,
-			      info_hash = InfoHash});
-
-process_input(#state{mode = server,
-		     step = info_hash} = State) ->
-    State;
-
-%% Waiting for peer_id
-
-process_input(#state{mode = server,
-		     step = peer_id,
-		     buffer = <<PeerId:20/binary, Rest/binary>>,
-		     sock = Sock,
-		     info_hash = InfoHash} = State) ->
+	% TODO: check if we serve that infohash, and only if we do send out the handshake - otherwise terminate
     {ok, MyPeerId} = torrentdb:peer_id(),
-    if
-	PeerId =/= MyPeerId ->
-	    {ok, {IP, Port}} = inet:peername(Sock),
-	    peerdb:register_peer(InfoHash,
-				 PeerId,
-				 IP, Port),
+    if 
+	    PeerId =:= MyPeerId -> exit(normal); % die - don't connect to self
+	    
+	    true ->
+		    %register with peerdb 
+			{ok, {IP, Port}} = inet:peername(Sock),
+			peerdb:register_peer(InfoHash,PeerId,IP,Port),
+			NewState = State#state{step = run,
+						  buffer = Rest,
+						  info_hash = InfoHash}	,	
+			send_full_handshake(NewState),
+			send_bitfield(NewState),
+			logger:log(wire, debug,"Completed server-side handshake on socket ~p with ~s:~b~n", [Sock,inet_parse:ntoa(IP),Port]),
+			process_input(NewState)
+	end;
 
-	    {ok, MyPeerId} = torrentdb:peer_id(),
-	    gen_tcp:send(Sock, MyPeerId),
-	    send_bitfield(State),
-	    logger:log(wire, debug,
-		       "Completed server-side handshake on socket ~p", [Sock]),
-	    process_input(State#state{step = run,
-				      buffer = Rest});
-	true ->  %% Connected to myself
-	    exit(normal)
-    end;
+%% received header length, but not in correct format
+process_input(#state{mode = server, step = handshake, buffer = <<_Ignore:49/binary, _>>} = _State) ->
+	exit(malformed_handshake);
 
-process_input(#state{mode = server,
-		     step = peer_id} = State) ->
+%% wait for more enough bytes to parse header
+process_input(#state{mode = server, step = handshake} = State) ->
     State;
 
 %%%===================================================================
@@ -280,78 +231,28 @@ process_input(#state{mode = server,
 
 process_input(#state{mode = client,
 		     step = handshake,
-		     buffer = <<19,
-				"BitTorrent protocol",
-				Buffer/binary>>
-		    } = State) ->
-    process_input(State#state{step = extensions,
-			      buffer = Buffer});
-
-process_input(#state{mode = client,
-		     step = handshake,
-		     buffer = Buffer} = State)
-  when size(Buffer) < 20 ->
-    logger:log(wire, debug,
-	       "Client-side handshake mismatch"),
-    State;
-
-%% Waiting for extensions
-
-process_input(#state{mode = client,
-		     step = extensions,
-		     buffer = <<_Ignore:8/binary, Rest/binary>>} = State) ->
-    process_input(State#state{step = info_hash,
-			      buffer = Rest});
-
-process_input(#state{mode = client,
-		     step = extensions} = State) ->
-    State;
-
-%% Waiting for info_hash
-
-process_input(#state{mode = client,
-		     step = info_hash,
 		     info_hash = InfoHash,
-		     buffer = <<PeerInfoHash:20/binary, Rest/binary>>}
-	      = State) ->
-    if
-	InfoHash =/= PeerInfoHash ->
-	    exit(info_hashes_differ);
-	true -> ok
-    end,
-    process_input(State#state{step = peer_id,
-			      buffer = Rest,
-			      info_hash = InfoHash});
-
-process_input(#state{mode = client,
-		     step = info_hash} = State) ->
-    State;
-
-%% Waiting for peer_id
-
-process_input(#state{mode = client,
-		     step = peer_id,
-		     sock = Sock,
-		     buffer = <<PeerId:20/binary, Rest/binary>>,
-		     info_hash = InfoHash} = State) ->
+		     buffer = <<19, "BitTorrent protocol", _ExtensionBytes:8/binary , InfoHash:20/binary, PeerId:20/binary, Rest/binary>>,
+		     sock = Sock} = State) ->
     {ok, MyPeerId} = torrentdb:peer_id(),
-    if
-	PeerId =/= MyPeerId ->
-	    {ok, {IP, Port}} = inet:peername(Sock),
-	    peerdb:register_peer(InfoHash,
-				 PeerId,
-				 IP, Port),
+    if 
+	    PeerId =:= MyPeerId -> exit(normal); % die - don't connect to self
 	    
-	    logger:log(wire, debug,
-		       "Completed client-side handshake on socket ~p", [Sock]),
-	    process_input(State#state{step = run,
-				      buffer = Rest});
-	true ->  %% Connected to myself
-	    exit(normal)
-    end;
+	    true ->
+		    %register with peerdb 
+			{ok, {IP, Port}} = inet:peername(Sock),
+			peerdb:register_peer(InfoHash,PeerId,IP,Port),
+			NewState = State#state{step = run, buffer = Rest},	
+			logger:log(wire, debug,"Completed client-side handshake on socket ~p with ~s:~b~n", [Sock,inet_parse:ntoa(IP),Port]),
+			process_input(NewState)
+	end;
 
-process_input(#state{mode = client,
-		     step = peer_id} = State) ->
+%% received header length, but not in correct format
+process_input(#state{mode = server, step = handshake, buffer = <<_Ignore:49/binary, _>>} = _State) ->
+	exit(malformed_handshake);
+
+% wait for more bytes
+process_input(#state{mode = client, step = handshake} = State) ->
     State;
 
 %%%===================================================================
@@ -411,14 +312,12 @@ send_message(Sock, Msg) ->
 		      <<Len:32/big,
 			Msg/binary>>).
 
-send_handshake(#state{sock = Sock}) ->
-	BinaryGreeting =  <<19, "BitTorrent protocol">>,
-%    logger:log(wire, info,"Sending handshake of ~p~n", [BinaryGreeting]),
-    ok = gen_tcp:send(Sock,BinaryGreeting).
-
-send_extensions(#state{sock = Sock}) ->
-%    logger:log(wire, info,"Sending extensions of zeros~n", []),
-    ok = gen_tcp:send(Sock, <<0, 0, 0, 0, 0, 0, 0, 0>>).
+% see http://wiki.theory.org/BitTorrentSpecification
+% handshake: <pstrlen><pstr><reserved><info_hash><peer_id>
+send_full_handshake(#state{sock = Sock, info_hash = InfoHash}) ->
+    {ok, MyPeerId} = torrentdb:peer_id(),
+	Handshake = <<19, "BitTorrent protocol", 0,0,0,0,0,0,0,0, InfoHash/binary, MyPeerId/binary>>,
+	gen_tcp:send(Sock, Handshake).
 
 
 send_bitfield(#state{sock = Sock,
@@ -449,7 +348,7 @@ send_queued(#queued{piece = Piece,
 		   info_hash = InfoHash} = State) ->
     FileRanges = piecesdb:map_files(InfoHash, Piece, Offset, Length),
     MessageLength = 1 + 4 + 4 + Length,
-    logger:log(wire, info, "~s Sending out piece ~p offset ~p length ~p~n", [prit_util:info_hash_representation(InfoHash),Piece, Offset, Length]),
+    % logger:log(wire, info, "~s Sending out piece ~p offset ~p length ~p~n", [prit_util:info_hash_representation(InfoHash),Piece, Offset, Length]),
     gen_tcp:send(Sock, <<MessageLength:32/big, ?PIECE,
 			 Piece:32/big, Offset:32/big>>),
     send_piece(FileRanges, State).
@@ -458,7 +357,7 @@ send_piece(FileRanges, #state{sock = Sock,
 			      info_hash = InfoHash}) ->
     lists:foreach(
       fun({Path, Offset, Length}) ->
-	      logger:log(wire, debug, "Sending ~B bytes to socket ~p", [Length, Sock]),
+	      % logger:log(wire, debug, "Sending ~B bytes to socket ~p", [Length, Sock]),
 	      backend:fold_file(Path, Offset, Length,
 				fun(Data, _) ->
 					gen_tcp:send(Sock, Data),
