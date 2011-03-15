@@ -33,7 +33,7 @@ announce(InfoHash, Ip, Port, PeerId, Uploaded, Downloaded, Left) ->
 	{atomic, Result} = mnesia:transaction(fun() -> 
 		AllPeers = case Left of 
 			0 -> % we are seeder
-				qlc:e(qlc:q([Pirate || Pirate <- mnesia:table(pirate), Pirate#pirate.left =/= 0]));
+				qlc:e(qlc:q([Pirate || Pirate <- mnesia:table(pirate), Pirate#pirate.left =/= 0, Pirate#pirate.info_hash =:= InfoHash]));
 			_ -> % we are leecher
 				mnesia:index_read(pirate, InfoHash, #pirate.info_hash)
 		end,

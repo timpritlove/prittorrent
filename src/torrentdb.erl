@@ -293,6 +293,7 @@ tracker_request(AnnounceUrl, InfoHash, Event) ->
 
 connect_by_tracker_response(InfoHash, Response) ->
     Peers = tracker_client:peer_list_from_info(Response),
+    io:format("Got peerlist:~w~n",[Peers]),
     peerdb:add_peers(InfoHash, Peers).
 
 uniq_list([]) ->
