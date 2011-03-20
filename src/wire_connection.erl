@@ -196,10 +196,9 @@ process_input(#state{mode = server,
 		     sock = Sock} = State) ->
 	% TODO: check if we serve that infohash, and only if we do send out the handshake - otherwise terminate
     {ok, MyPeerId} = torrentdb:peer_id(),
-    if 
-	    PeerId =:= MyPeerId -> exit(normal); % die - don't connect to self
-	    
-	    true ->
+    case PeerId =:= MyPeerId of
+	    true -> exit(normal); % die - don't connect to self
+	    false ->
 		    %register with peerdb 
 			{ok, {IP, Port}} = inet:peername(Sock),
 			peerdb:register_peer(InfoHash,PeerId,IP,Port),
@@ -210,7 +209,7 @@ process_input(#state{mode = server,
 			send_bitfield(NewState),
 			logger:log(wire, debug,"Completed server-side handshake on socket ~p with ~s:~b~n", [Sock,inet_parse:ntoa(IP),Port]),
 			process_input(NewState)
-	end;
+    end;
 
 %% received header length, but not in correct format
 process_input(#state{mode = server, step = handshake, buffer = <<Ignore:49/binary, _/binary>>} = _State) ->
@@ -233,17 +232,16 @@ process_input(#state{mode = client,
 		     buffer = <<19, "BitTorrent protocol", _ExtensionBytes:8/binary , InfoHash:20/binary, PeerId:20/binary, Rest/binary>>,
 		     sock = Sock} = State) ->
     {ok, MyPeerId} = torrentdb:peer_id(),
-    if 
-	    PeerId =:= MyPeerId -> exit(normal); % die - don't connect to self
-	    
-	    true ->
+    case PeerId =:= MyPeerId of
+	    true -> exit(normal); % die - don't connect to self
+	    false ->
 		    %register with peerdb 
 			{ok, {IP, Port}} = inet:peername(Sock),
 			peerdb:register_peer(InfoHash,PeerId,IP,Port),
 			NewState = State#state{step = run, buffer = Rest},	
 			logger:log(wire, debug,"Completed client-side handshake on socket ~p with ~s:~b~n", [Sock,inet_parse:ntoa(IP),Port]),
 			process_input(NewState)
-	end;
+    end;
 
 %% received header length, but not in correct format
 process_input(#state{mode = server, step = handshake, buffer = <<Ignore:49/binary, _/binary>>} = _State) ->
@@ -336,8 +334,9 @@ build_bitfield(N) when N >= 8 ->
 build_bitfield(N) when N < 8 ->
     [lists:foldl(fun(I, R) ->
 			 (R bsl 1) bor
-			     (if N >= I -> 1;
-				 true -> 0
+			     (case (N >= I) of
+				  true -> 1;
+				  false -> 0
 			      end)
 		 end, 0, lists:seq(1, 8))].
 
