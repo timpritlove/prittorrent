@@ -197,18 +197,19 @@ process_input(#state{mode = server,
 	% TODO: check if we serve that infohash, and only if we do send out the handshake - otherwise terminate
     {ok, MyPeerId} = torrentdb:peer_id(),
     case PeerId =:= MyPeerId of
-	    true -> exit(normal); % die - don't connect to self
-	    false ->
-		    %register with peerdb 
-			{ok, {IP, Port}} = inet:peername(Sock),
-			peerdb:register_peer(InfoHash,PeerId,IP,Port),
-			NewState = State#state{step = run,
-						  buffer = Rest,
-						  info_hash = InfoHash}	,	
-			send_full_handshake(NewState),
-			send_bitfield(NewState),
-			logger:log(wire, debug,"Completed server-side handshake on socket ~p with ~s:~b~n", [Sock,inet_parse:ntoa(IP),Port]),
-			process_input(NewState)
+	true -> exit(normal); % die - don't connect to self
+	false -> % register with peerdb
+	    {ok, {IP, Port}} = inet:peername(Sock),
+	    peerdb:register_peer(InfoHash,PeerId,IP,Port),
+	    NewState = State#state{step = run,
+				   buffer = Rest,
+				   info_hash = InfoHash},
+	    send_full_handshake(NewState),
+	    send_bitfield(NewState),
+	    logger:log(wire, debug,
+		       "Completed server-side handshake on socket ~p with ~s:~b~n",
+		       [Sock,inet_parse:ntoa(IP),Port]),
+	    process_input(NewState)
     end;
 
 %% received header length, but not in correct format
@@ -233,14 +234,15 @@ process_input(#state{mode = client,
 		     sock = Sock} = State) ->
     {ok, MyPeerId} = torrentdb:peer_id(),
     case PeerId =:= MyPeerId of
-	    true -> exit(normal); % die - don't connect to self
-	    false ->
-		    %register with peerdb 
-			{ok, {IP, Port}} = inet:peername(Sock),
-			peerdb:register_peer(InfoHash,PeerId,IP,Port),
-			NewState = State#state{step = run, buffer = Rest},	
-			logger:log(wire, debug,"Completed client-side handshake on socket ~p with ~s:~b~n", [Sock,inet_parse:ntoa(IP),Port]),
-			process_input(NewState)
+	true -> exit(normal); % die - don't connect to self
+	false -> % register with peerdb
+	    {ok, {IP, Port}} = inet:peername(Sock),
+	    peerdb:register_peer(InfoHash,PeerId,IP,Port),
+	    NewState = State#state{step = run, buffer = Rest},
+	    logger:log(wire, debug,
+		       "Completed client-side handshake on socket ~p with ~s:~b~n",
+		       [Sock,inet_parse:ntoa(IP),Port]),
+	    process_input(NewState)
     end;
 
 %% received header length, but not in correct format
