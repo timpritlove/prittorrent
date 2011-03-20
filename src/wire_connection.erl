@@ -336,8 +336,9 @@ build_bitfield(N) when N >= 8 ->
 build_bitfield(N) when N < 8 ->
     [lists:foldl(fun(I, R) ->
 			 (R bsl 1) bor
-			     (if N >= I -> 1;
-				 true -> 0
+			     (case (N >= I) of
+				  true -> 1;
+				  false -> 0
 			      end)
 		 end, 0, lists:seq(1, 8))].
 
