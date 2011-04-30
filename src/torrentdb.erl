@@ -69,11 +69,11 @@ apply_seedlist(NewSeedList) ->
 	      exit(TLPid, kill)
       end, Removed),
     
-    if
-	length(Removed) > 0 ->
+    case length(Removed) > 0 of
+	true ->
 	    logger:log(control, warn,
 		       "Removed ~B torrents", [length(Removed)]);
-	true -> quiet
+	false -> quiet
     end,
     lists:foreach(
       fun({TorrentFile, Dir}) ->
@@ -115,8 +115,9 @@ seedlist_t() ->
 
 add_torrent(TorrentFile, Dir) ->
     Torrent = backend:read_file(TorrentFile),
-    if size(Torrent) > ?MAX_TORRENT_SIZE -> exit(torrent_file_too_big);
-       true -> ok
+    case size(Torrent) > ?MAX_TORRENT_SIZE of
+	true -> exit(torrent_file_too_big);
+	false -> ok
     end,
     Parsed = benc:parse(Torrent),
     {value, {_, InfoDict}} =
