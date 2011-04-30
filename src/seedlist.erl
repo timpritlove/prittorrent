@@ -23,18 +23,18 @@ loop(Filename, ModTimes) ->
 		       lists:foldl(
 			 fun({Path, Time}, Modified) ->
 				 CurrentTime = get_mtime(Path),
-				 if
-				     CurrentTime > Time ->
+				 case CurrentTime > Time of
+				     true ->
 					 logger:log(control, info,
 						    "~s has been modified, mtime=~p", [Path, CurrentTime]),
 					 true;
-				     true ->
+				     false ->
 					 Modified
 				 end
 			 end, false, ModTimes)
 	       end,
-    if
-	Modified ->
+    case Modified of
+	true ->
 	    case (catch load_seedlist(Filename)) of
 		{'EXIT', Reason} ->
 		    logger:log(control, fatal,
@@ -47,7 +47,7 @@ loop(Filename, ModTimes) ->
 		    torrentdb:apply_seedlist(SeedList),
 		    ?MODULE:loop(Filename, NewModTimes)
 	    end;
-	true ->
+	false ->
 	    receive
 	    after ?RELOAD_INTERVAL * 1000 ->
 		    ?MODULE:loop(Filename, ModTimes)

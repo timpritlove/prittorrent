@@ -76,9 +76,9 @@ map_files1(Offset, Length, [{_, Size} | Files])
     map_files1(Offset - Size, Length, Files);
 %% Take:
 map_files1(Offset, Length, [{Path, Size} | Files]) ->
-    Length1 = if
-		  Offset + Length > Size -> Size - Offset;
-		  Offset + Length =< Size -> Length
+    Length1 = case Offset + Length > Size of
+		  true  -> Size - Offset;
+		  false -> Length
 	      end,
     [{Path, Offset, Length1}
      | map_files1(0, Length - Length1,
